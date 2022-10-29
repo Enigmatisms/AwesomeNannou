@@ -26,6 +26,20 @@ fn transform(wi: &Point2, dir: Point2) -> Point2 {
     pt2(dir_x, dir_y)
 }
 
+// Direct sampling from this function will cause problems
+fn get_sample_inverse_hg(wi: &Point2, mut g: f32) -> Point2 {
+    let next_rd:f32 = rand::thread_rng().gen_range(-1.0..=1.0);
+    if g.abs() < 1e-4 {
+        g = g.signum() * 1e-4;
+    }
+    let g2 = g * g;
+    let sign: f32 = match rand::random::<bool>() {true => 1., false => -1.};
+    let cos_t = (1. + g2 - ((1. - g2) / (1. - g + 2. * g * (-(next_rd.abs()) + 1.0))).pow(2.)) / 2. / g;
+    let sin_t = sign * (1. - cos_t * cos_t).max(0.).sqrt();
+    let pt = pt2(sin_t, cos_t);
+    transform(wi, pt)
+}
+
 fn get_sample(wi: &Point2, g: f32) -> Point2 {
     let next_rd:f32 = rand::thread_rng().gen_range(-1.0..1.0);
     let tan_val = (std::f32::consts::FRAC_PI_2 * next_rd).tan();
@@ -92,11 +106,11 @@ fn event(_app: &App, _model: &mut Model, _event: WindowEvent) {}
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().rgba(0., 0., 0., 1.0);
-    draw.arrow()
-        .start(-model.dir * model.length)
-        .end(pt2(0., 0.))
-        .weight(4.)
-        .color(MEDIUMSPRINGGREEN);
+    // draw.arrow()
+    //     .start(-model.dir * model.length)
+    //     .end(pt2(0., 0.))
+    //     .weight(4.)
+    //     .color(MEDIUMSPRINGGREEN);
     
     for pt in model.samples.iter() {
         draw.arrow()
