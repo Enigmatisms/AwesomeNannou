@@ -40,17 +40,29 @@ fn get_sample_inverse_hg(wi: &Point2, mut g: f32) -> Point2 {
     transform(wi, pt)
 }
 
-fn get_sample(wi: &Point2, g: f32) -> Point2 {
+fn get_sample_hg(wi: &Point2, g: f32) -> Point2 {
     let next_rd:f32 = rand::thread_rng().gen_range(-1.0..1.0);
     let tan_val = (std::f32::consts::FRAC_PI_2 * next_rd).tan();
     let inner = (1. - g) * tan_val / (1.000001 + g);
-    if inner.is_infinite() || inner.is_nan() {
-        println!("NaN, next rd = {}", next_rd);
-    }
     let sign: f32 = match rand::random::<bool>() {true => 1., false => -1.};
     let cos_t = (2. * inner.atan()).cos().min(1.);
     let sin_t = sign * (1. - cos_t * cos_t).max(0.).sqrt();
     let pt = pt2(sin_t, cos_t);
+    transform(wi, pt)
+}
+
+// This formulation comes from simplified unpolarized RayLeigh Sampling: https://doi.org/10.1364/JOSAA.28.002436
+// 这里的实现与HG有所不同，HG中求出的 cos_t 与 sin_t 都是新的光线方向（相对于(0, 1)），而这里求出的是相对于(1, 0)的偏转
+// 有点绕：前者是以原入射方向为(0, 1)时求出的新方向，而后者是相对原方向的偏转
+// 用屁股也能想清楚，Rayleigh散射在cos t = 1或者-1时的PDF最大，对应偏转方向为0, -Pi
+fn get_sample_rayleigh(wi: &Point2) -> Point2 {
+    let next_rd: f32 = rand::thread_rng().gen_range(-1.0..1.0);
+    let inner = 2. * next_rd + (4. * next_rd.pow(2.0) + 1.).sqrt();
+    let u = - inner.cbrt();
+    let sign: f32 = match rand::random::<bool>() {true => 1., false => -1.};
+    let cos_t = (u - 1. / u).clamp(-1.0, 1.0);
+    let sin_t = sign * (1. - cos_t * cos_t).max(0.).sqrt();
+    let pt = pt2(cos_t, sin_t);
     transform(wi, pt)
 }
 
@@ -64,7 +76,7 @@ pub fn model(app: &App) -> Model {
         .build().unwrap();
     Model {
         sample_n: 11, samples: vec![pt2(0., 0.); 2048], dir: pt2(0., 0.), hg_g: 0.5, 
-        alpha: 0.5, length: 200., egui: Egui::from_window(&app.window(win_id).unwrap()),
+        alpha: 0.1, length: 255., egui: Egui::from_window(&app.window(win_id).unwrap()),
     }
 }
 
@@ -84,7 +96,7 @@ pub fn update(_app: &App, model: &mut Model, _update: Update) {
                 let pnum = 1 << (sample_n - 3);
                 let thread_wi: Vec2 = *local_wi;
                 for _ in 0..pnum {
-                    let sample = get_sample(&thread_wi, hg_coeff);
+                    let sample = get_sample_rayleigh(&thread_wi);
                     let mut v = clone.lock().unwrap();
                     v.push(sample);
                 }
@@ -106,11 +118,11 @@ fn event(_app: &App, _model: &mut Model, _event: WindowEvent) {}
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().rgba(0., 0., 0., 1.0);
-    // draw.arrow()
-    //     .start(-model.dir * model.length)
-    //     .end(pt2(0., 0.))
-    //     .weight(4.)
-    //     .color(MEDIUMSPRINGGREEN);
+    draw.arrow()
+        .start(-model.dir * model.length)
+        .end(pt2(0., 0.))
+        .weight(4.)
+        .color(MEDIUMSPRINGGREEN);
     
     for pt in model.samples.iter() {
         draw.arrow()
