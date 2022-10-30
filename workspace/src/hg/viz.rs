@@ -96,7 +96,7 @@ pub fn update(_app: &App, model: &mut Model, _update: Update) {
                 let pnum = 1 << (sample_n - 3);
                 let thread_wi: Vec2 = *local_wi;
                 for _ in 0..pnum {
-                    let sample = get_sample_rayleigh(&thread_wi);
+                    let sample = get_sample_hg(&thread_wi, hg_coeff);
                     let mut v = clone.lock().unwrap();
                     v.push(sample);
                 }
